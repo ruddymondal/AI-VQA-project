@@ -21,7 +21,7 @@ def main(args):
 
     #Build models
     #CNN
-    #LSTM
+    lstmqn = LSTMQuestion(args.vocab_size)
     concat = Concat(args.concat_size).to(device)
 
     #Loss and optimizer
@@ -40,7 +40,7 @@ def main(args):
 
             #Forward, backward and optimize
             #get CNN features
-            #get LSTM features
+            lstm_output = lstmqn(questions)
             outputs = concat(ft_output,lstm_output)
             outputs = outputs[0]
             loss = criterion(outputs,targets)
