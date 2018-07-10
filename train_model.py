@@ -42,6 +42,7 @@ def main(args):
             #get CNN features
             #get LSTM features
             outputs = concat(ft_output,lstm_output)
+            outputs = outputs[0]
             loss = criterion(outputs,targets)
             #CNN.zero_grad()
             #LSTM.zero_grad()
