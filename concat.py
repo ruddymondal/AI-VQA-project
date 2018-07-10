@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
+import torch.nn.functional as F
 
 class Concat(nn.Module):
     def __init__(self, concat_size):
