@@ -16,10 +16,10 @@ class LSTMquestion(nn.Module):
                         torch.zeroes(1, 1, hidden_dim))
         self.max_seq_ln = max_seq_ln
 
-    def foward(self, word):
-        embeds = self.embeddings(word)
+    def forward(self, question):
+        embeds = self.embeddings(question)
         lstm_out, self.hidden = self.lstm(
-            embeds.view(len(word), 1, -1), self.hidden)
+            embeds.view(len(question), 1, -1), self.hidden)
         )
         return lstm_out
         # classes = do linear mapping(lstm_out.view(len(word), -1))
