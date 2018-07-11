@@ -20,13 +20,13 @@ def main(args):
     #build data loader
 
     #Build models
-    #CNN
-    lstmqn = LSTMQuestion(args.vocab_size)
+    cnn = CNN()
+    lstmqn = LSTMQuestion(args.vocab_size).to(device)
     concat = Concat(args.concat_size).to(device)
 
     #Loss and optimizer
     criterion = nn.CrossEntropyLoss
-    params = list(concat.parameters()) + #cnn_params #lstm_params
+    params = list(concat.parameters()) + list(cnn.parameters()) + list(lstm.parameters())
     optimizer = torch.optim.Adam(params, lr=args.learning_rate)
 
     #Train the models
@@ -39,12 +39,12 @@ def main(args):
             targets = annotations
 
             #Forward, backward and optimize
-            #get CNN features
+            
             lstm_output = lstmqn(questions)
             outputs = concat(ft_output,lstm_output)
             outputs = outputs[0]
             loss = criterion(outputs,targets)
-            #CNN.zero_grad()
+            cnn.zero_grad()
             lstmqn.zero_grad()
             concat.zero_grad()
             loss.backward()
