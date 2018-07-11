@@ -45,7 +45,7 @@ def main(args):
             outputs = outputs[0]
             loss = criterion(outputs,targets)
             #CNN.zero_grad()
-            #LSTM.zero_grad()
+            lstmqn.zero_grad()
             concat.zero_grad()
             loss.backward()
             optimizer.step()
