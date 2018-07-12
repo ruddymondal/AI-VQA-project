@@ -35,12 +35,12 @@ def main(args):
         for i, (images,annotations,questions,lengths) in enumerate(dataloader):
             
             images = images.to(device)
-            question = pack_padded_sequence(questions, length, batch_first=True)[0]
-            targets = annotations
+            question = questions.to(device)
+            targets = annotations.to(device)
 
             #Forward, backward and optimize
             
-            lstm_output = lstmqn(questions)
+            lstm_output = lstmqn(question)
             outputs = concat(ft_output,lstm_output)
             outputs = outputs[0]
             loss = criterion(outputs,targets)
