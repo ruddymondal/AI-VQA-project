@@ -262,15 +262,16 @@ class CocoDataset(data.Dataset):
 
 
 def collate_fn(data):
-    batch.sort(key=lambda x: x[-1], reverse=True)
-    return data.dataloader.default_collate(batch)
+	data.sort(key=lambda x: x[-1], reverse=True)
+	return data.dataloader.default_collate(data)
 
-def get_loader(root, json, vocab, transform, batch_size, shuffle, num_workers):
+def get_loader(root, anns_json, qns_json, vocab_path, transform, batch_size, shuffle, num_workers):
 	"""Returns torch.utils.data.DataLoader for custom coco dataset."""
 	# COCO caption dataset
 	coco = CocoDataset(root=root,
-					   json=json,
-					   vocab=vocab,
+					   anns_json=anns_json,
+                       qns_json=qns_json,
+					   vocab_path=vocab_path,
 					   transform=transform)
 	
 	# Data loader for COCO dataset
