@@ -16,8 +16,9 @@ class LSTMquestion(nn.Module):
                         torch.zeroes(1, 1, hidden_dim))
         self.max_seq_ln = max_seq_ln
 
-    def forward(self, question):
+    def forward(self, question, q_len):
         embeds = self.embeddings(question)
+        embeds = pack_padded_sequence(embeds, q_len, batch_first=True)
         lstm_out, self.hidden = self.lstm(
             embeds.view(len(question), 1, -1), self.hidden)
         )
