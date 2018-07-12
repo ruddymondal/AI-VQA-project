@@ -40,7 +40,7 @@ def main(args):
 
             #Forward, backward and optimize
             
-            lstm_output = lstmqn(question)
+            lstm_output = lstmqn(question, length)
             outputs = concat(ft_output,lstm_output)
             outputs = outputs[0]
             loss = criterion(outputs,targets)
