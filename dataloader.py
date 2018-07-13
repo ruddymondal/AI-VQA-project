@@ -24,12 +24,12 @@ class COCO:
 		print('loading annotations into memory...')
 		tic = time.time()
 		dataset = json.load(open(annotation_file, 'r'))
-		assert type(dataset)==dict, 'annotation file format {} not supported'.format(type(dataset))
-		print('Done (t={:0.2f}s)'.format(time.time()- tic))
+		assert type(dataset) == dict, 'annotation file format {} not supported'.format(type(dataset))
+		print('Done (t={:0.2f}s)'.format(time.time() - tic))
 		self.dataset = dataset
 		self.image_folder = image_folder
 		questionSet = json.load(open(question_file, 'r'))
-		assert type(questionSet)==dict, 'question file format {} not supported'.format(type(questionSet))
+		assert type(questionSet) == dict, 'question file format {} not supported'.format(type(questionSet))
 		self.questionSet = questionSet
 		self.createIndex()
 
@@ -43,7 +43,7 @@ class COCO:
 				imgToAnns[ann['image_id']].append(ann)
 				imgs[ann['image_id']] = 'COCO_' + self.image_folder + '_%12d.JPG' % (ann['image_id'])
 				for qn in self.questionSet['questions']:
-					if qn['question_id']==ann['question_id']:
+					if qn['question_id'] == ann['question_id']:
 						imgToQns[ann['image_id']].append((ann['question_id'], qn['question']))
 						qns[ann['question_id']] = qn['question']
 						break
@@ -78,7 +78,7 @@ class COCO:
 				anns = list(itertools.chain.from_iterable(lists))
 			else:
 				anns = self.dataset['annotations']
-			anns = anns if len(qnIds)  == 0 else [ann for ann in anns if ann['question_id'] in qnIds]
+			anns = anns if len(qnIds) == 0 else [ann for ann in anns if ann['question_id'] in qnIds]
 		return anns
 
 	def getImgIds(self, imgIds=[], qnIds=[]):
@@ -143,30 +143,7 @@ class COCO:
 		res.createIndex()
 		return res
 
-	def loadNumpyAnnotations(self, data):
-		"""
-		Convert result data from a numpy array [Nx7] where each row contains {imageID,x1,y1,w,h,score,class}
-		:param  data (numpy.ndarray)
-		:return: annotations (python nested list)
-		"""
-		print('Converting ndarray to lists...')
-		assert(type(data) == np.ndarray)
-		print(data.shape)
-		assert(data.shape[1] == 7)
-		N = data.shape[0]
-		ann = []
-		for i in range(N):
-			if i % 1000000 == 0:
-				print('{}/{}'.format(i,N))
-			ann += [{
-				'image_id'  : int(data[i, 0]),
-				'bbox'  : [ data[i, 1], data[i, 2], data[i, 3], data[i, 4] ],
-				'score' : data[i, 5],
-				'category_id': int(data[i, 6]),
-				}]
-		return ann
-
-	def build_vocab(threshold):
+	def build_vocab(self, threshold):
 		"""Build a simple vocabulary wrapper."""
 		counter = Counter()
 		ids = self.qns.keys()
@@ -174,9 +151,12 @@ class COCO:
 			question = str(self.qns[id])
 			tokens = nltk.tokenize.word_tokenize(question.lower())
 			counter.update(tokens)
-
-			if (i+1) % 1000 == 0:
-				print("[{}/{}] Tokenized the captions.".format(i+1, len(ids)))
+		ids = self.dataset['annotations'].keys()
+		for i, id in enumerate(ids):
+			answers = self.dataset['annotations'][id]['answers']
+			for answer in answers:
+				tokens = nltk.tokenize.word_tokenize(answer['answer'].lower())
+				counter.update(tokens)
 
 		# If the word frequency is less than 'threshold', then the word is discarded.
 		words = [word for word, cnt in counter.items() if cnt >= threshold]
@@ -192,6 +172,9 @@ class COCO:
 		for i, word in enumerate(words):
 			vocab.add_word(word)
 		return vocab
+
+	def getQnLength(self, qnId):
+		return len(self.qns[qnId].split())
 
 
 class Vocabulary(object):
@@ -219,14 +202,6 @@ class Vocabulary(object):
 class CocoDataset(data.Dataset):
 	"""COCO Custom Dataset compatible with torch.utils.data.DataLoader."""
 	def __init__(self, root, anns_json, qns_json, vocab_path, transform=None):
-		"""Set the path for images, annotations, and questions.
-		
-		Args:
-			root: image directory.
-			anns_json: coco annotation file path.
-			qns_json: coco question file path.
-			transform: image transformer.
-		"""
 		self.root = root
 		self.coco = COCO(anns_json, root, qns_json)
 		self.transform = transform
@@ -254,8 +229,16 @@ class CocoDataset(data.Dataset):
 		question.append(self.vocab('<start>'))
 		question.extend([self.vocab(token) for token in tokens])
 		question.append(self.vocab('<end>'))
-		target = torch.Tensor(question)
-		return image, target
+		question = torch.Tensor(question)
+
+		# Convert answer (string) to word ids.
+		tokens = nltk.tokenize.word_tokenize(str(answer).lower())
+		answer = []
+		answer.append(self.vocab('<start>'))
+		answer.extend([self.vocab(token) for token in tokens])
+		answer.append(self.vocab('<end>'))
+		target = torch.Tensor(answer)
+		return (image, question), target
 
 	def __len__(self):
 		return len(self.coco.dataset['annotations'])
@@ -267,19 +250,13 @@ def collate_fn(data):
 
 def get_loader(root, anns_json, qns_json, vocab_path, transform, batch_size, shuffle, num_workers):
 	"""Returns torch.utils.data.DataLoader for custom coco dataset."""
-	# COCO caption dataset
 	coco = CocoDataset(root=root,
 					   anns_json=anns_json,
-                       qns_json=qns_json,
+					   qns_json=qns_json,
 					   vocab_path=vocab_path,
 					   transform=transform)
 	
 	# Data loader for COCO dataset
-	# This will return (images, captions, lengths) for each iteration.
-	# images: a tensor of shape (batch_size, 3, 224, 224).
-	# captions: a tensor of shape (batch_size, padded_length).
-	# lengths: a list indicating valid length for each caption.  length is
-	# (batch_size).
 	data_loader = torch.utils.data.DataLoader(dataset=coco, 
 											  batch_size=batch_size,
 											  shuffle=shuffle,
