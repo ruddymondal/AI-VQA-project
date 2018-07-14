@@ -1,5 +1,16 @@
 import argparse
 import torch
+import cnn
+import lstm
+import concat
+from torch.nn.utils.rnn import pack_padded_sequence
+from torchvision import transforms
+from data_loader import get_loader
+import torch.nn as nn
+import numpy as np
+import os
+import pickle
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -18,9 +29,9 @@ def main(args):
     data_loader = get_loader(args.anns_json, args.qns_json, vocab_path, transform = transform, args.batch_size, shuffle=True, num_workers=args.num_workers) 
 
     #Build models
-    cnn = CNN()
-    lstmqn = LSTMQuestion(args.vocab_size).to(device)
-    concat = Concat(args.concat_size).to(device)
+    cnn = cnn.CNN()
+    lstmqn = lstm.LSTMQuestion(args.vocab_size).to(device)
+    concat = concat.Concat(args.concat_size).to(device)
 
     #Loss and optimizer
     criterion = nn.CrossEntropyLoss
