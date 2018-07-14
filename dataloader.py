@@ -232,7 +232,7 @@ class CocoDataset(data.Dataset):
 		question.extend([self.vocab(token) for token in tokens])
 		question.append(self.vocab('<end>'))
 		question = torch.Tensor(question)
-		print(len(question))
+		qn_len = len(question))
 
 		# Convert answer (string) to word ids.
 		tokens = nltk.tokenize.word_tokenize(str(answer).lower())
@@ -241,7 +241,7 @@ class CocoDataset(data.Dataset):
 		answer.extend([self.vocab(token) for token in tokens])
 		answer.append(self.vocab('<end>'))
 		target = torch.Tensor(answer)
-		return (image, question), target
+		return (image, question), target, qn_len
 
 	def __len__(self):
 		return len(self.coco.dataset['annotations'])
