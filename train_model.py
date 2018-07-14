@@ -41,7 +41,7 @@ def main(args):
             ft_output = ccn(images)
             lstm_output = lstmqn(question, length)
             outputs = concat(ft_output,lstm_output)
-            outputs = outputs[0]
+            outputs = outputs[0,len(targets)]
             loss = criterion(outputs,targets)
             cnn.zero_grad()
             lstmqn.zero_grad()
