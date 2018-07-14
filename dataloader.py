@@ -7,6 +7,7 @@ import pickle
 import numpy as np
 import nltk
 import json
+import argparse
 from PIL import Image
 from collections import defaultdict, Counter
 
@@ -15,7 +16,7 @@ def _isArrayLike(obj):
 
 
 class COCO:
-	def __init__(self, annotation_file, image_folder, question_file):
+	def __init__(self, annotation_file, image_folder, question_file, index_file):
 		"""
 		Constructor of COCO helper class.
 		"""
@@ -33,30 +34,47 @@ class COCO:
 		questionSet = json.load(open(question_file, 'r'))
 		assert type(questionSet) == dict, 'question file format {} not supported'.format(type(questionSet))
 		self.questionSet = questionSet
-		self.createIndex()
+		self.createIndex(index_file)
 
-	def createIndex(self):
-		# create index
-		print('creating index...')
-		qns, imgs = {}, {}
-		imgToAnns,imgToQns = defaultdict(list), defaultdict(list)
-		if 'annotations' in self.dataset:
-			for ann in self.dataset['annotations']:
-				imgToAnns[ann['image_id']].append(ann)
-				imgs[ann['image_id']] = 'COCO_' + self.image_folder.split('/')[-1] + '_%12d.JPG' % (ann['image_id'])
-				for qn in self.questionSet['questions']:
-					if qn['question_id'] == ann['question_id']:
-						imgToQns[ann['image_id']].append((ann['question_id'], qn['question']))
-						qns[ann['question_id']] = qn['question']
-						break
+	def createIndex(self, index_file):
+		if index_file == "":
+			# create index
+			print('creating index...')
+			qns, imgs = {}, {}
+			imgToAnns,imgToQns = defaultdict(list), defaultdict(list)
+			if 'annotations' in self.dataset:
+				for ann in self.dataset['annotations']:
+					imgToAnns[ann['image_id']].append(ann)
+					imgs[ann['image_id']] = 'COCO_' + self.image_folder.split('/')[-1] + '_%12d.JPG' % (ann['image_id'])
+					for qn in self.questionSet['questions']:
+						if qn['question_id'] == ann['question_id']:
+							imgToQns[ann['image_id']].append((ann['question_id'], qn['question']))
+							qns[ann['question_id']] = qn['question']
+							break
 
-		print('index created!')
+			print('index created!')
 
-		# create class members
-		self.imgToAnns = imgToAnns
-		self.imgs = imgs
-		self.imgToQns = imgToQns
-		self.qns = qns
+			# create class members
+			self.imgToAnns = imgToAnns
+			self.imgs = imgs
+			self.imgToQns = imgToQns
+			self.qns = qns
+
+			index_data = {'imgToAnns': imgToAnns, 'imgs': imgs, 'imgToQns': imgToQns, 'qns': qns}
+			with open('index_data.json', 'w') as f:
+				json.dump(index_data, f)
+
+		else:
+			# load index
+			print('loading index into memory...')
+			index_data = json.load(open(index_file, 'r'))
+			print('index loaded!')
+
+			self.imgToAnns = index_data['imgToAnns']
+			self.imgs = index_data['imgs']
+			self.imgToQns = index_data['imgToQns']
+			self.qns = index_data['qns']
+
 
 	def info(self):
 		"""
@@ -203,9 +221,9 @@ class Vocabulary(object):
 	
 class CocoDataset(data.Dataset):
 	"""COCO Custom Dataset compatible with torch.utils.data.DataLoader."""
-	def __init__(self, root, anns_json, qns_json, vocab_path, transform=None):
+	def __init__(self, root, anns_json, qns_json, vocab_path, index_file, transform=None):
 		self.root = root
-		self.coco = COCO(anns_json, root, qns_json)
+		self.coco = COCO(anns_json, root, qns_json, index_file)
 		self.transform = transform
 		self.vocab = self.coco.build_vocab(2)
 		with open(vocab_path, 'wb') as f:
@@ -232,7 +250,7 @@ class CocoDataset(data.Dataset):
 		question.extend([self.vocab(token) for token in tokens])
 		question.append(self.vocab('<end>'))
 		question = torch.Tensor(question)
-		qn_len = len(question))
+		print(len(question))
 
 		# Convert answer (string) to word ids.
 		tokens = nltk.tokenize.word_tokenize(str(answer).lower())
@@ -241,7 +259,7 @@ class CocoDataset(data.Dataset):
 		answer.extend([self.vocab(token) for token in tokens])
 		answer.append(self.vocab('<end>'))
 		target = torch.Tensor(answer)
-		return (image, question), target, qn_len
+		return (image, question), target
 
 	def __len__(self):
 		return len(self.coco.dataset['annotations'])
@@ -251,12 +269,13 @@ def collate_fn(data):
 	data.sort(key=lambda x: x[-1], reverse=True)
 	return data.dataloader.default_collate(data)
 
-def get_loader(root, anns_json, qns_json, vocab_path, batch_size, transform=None, shuffle=False, num_workers=0):
+def get_loader(root, anns_json, qns_json, vocab_path, batch_size, index_file, transform=None, shuffle=False, num_workers=0):
 	"""Returns torch.utils.data.DataLoader for custom coco dataset."""
 	coco = CocoDataset(root=root,
 					   anns_json=anns_json,
 					   qns_json=qns_json,
 					   vocab_path=vocab_path,
+					   index_file=index_file,
 					   transform=transform)
 	
 	# Data loader for COCO dataset
@@ -269,4 +288,13 @@ def get_loader(root, anns_json, qns_json, vocab_path, batch_size, transform=None
 
 
 if __name__ == "__main__":
-	get_loader('data2/train2014', 'data2/v2_mscoco_train2014_annotations.json', 'data2/v2_OpenEnded_mscoco_train2014_questions.json', 'vocab.pkl', 128)
+	argparser = argparse.ArgumentParser()
+	argparser.add_argument('--index_file', type=str, default="")
+	args = argparser.parse_args()
+	coco = CocoDataset(root='data2/train2014',
+					   anns_json='data2/v2_mscoco_train2014_annotations.json',
+					   qns_json='data2/v2_OpenEnded_mscoco_train2014_questions.json',
+					   vocab_path='vocab.pkl',
+					   index_file=args.index_file,
+					   transform=None)
+	coco[-1]
