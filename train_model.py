@@ -56,9 +56,12 @@ def main(args):
             # Save the model checkpoints
             if (i+1) % args.save_step == 0:
                 torch.save(lstmqn.state_dict(), os.path.join(
-                    args.model_path, 'decoder-{}-{}.ckpt'.format(epoch+1, i+1)))
+                    args.model_path, 'lstmqn-{}-{}.ckpt'.format(epoch+1, i+1)))
                 torch.save(concat.state_dict(), os.path.join(
-                    args.model_path, 'encoder-{}-{}.ckpt'.format(epoch+1, i+1)))
+                    args.model_path, 'concat-{}-{}.ckpt'.format(epoch+1, i+1)))
+                torch.save(concat.state_dict(), os.path.join(
+                    args.model_path, 'cnn-{}-{}.ckpt'.format(epoch+1, i+1)))
+                
                 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -72,8 +75,8 @@ if __name__ == '__main__':
     parser.add_argument('--save_step', type=int , default=1000, help='step size for saving trained models')
     
     # Model parameters
-    parser.add_argument('--embed_size', type=int , default=256, help='dimension of word embedding vectors')
-    parser.add_argument('--hidden_size', type=int , default=512, help='dimension of lstm hidden states')
+    parser.add_argument('--embed_size', type=int , default=300, help='dimension of word embedding vectors')
+    parser.add_argument('--hidden_size', type=int , default=1024, help='dimension of lstm hidden states')
     parser.add_argument('--num_layers', type=int , default=1, help='number of layers in lstm')
     
     parser.add_argument('--num_epochs', type=int, default=5)
