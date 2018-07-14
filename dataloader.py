@@ -1,12 +1,14 @@
 import torch
 import torchvision.transforms as transforms
 import torch.utils.data as data
+import time
 import os
 import pickle
 import numpy as np
 import nltk
+import json
 from PIL import Image
-from collections import Counter
+from collections import defaultdict, Counter
 
 def _isArrayLike(obj):
 	return hasattr(obj, '__iter__') and hasattr(obj, '__len__')
@@ -41,7 +43,7 @@ class COCO:
 		if 'annotations' in self.dataset:
 			for ann in self.dataset['annotations']:
 				imgToAnns[ann['image_id']].append(ann)
-				imgs[ann['image_id']] = 'COCO_' + self.image_folder + '_%12d.JPG' % (ann['image_id'])
+				imgs[ann['image_id']] = 'COCO_' + self.image_folder.split('/')[-1] + '_%12d.JPG' % (ann['image_id'])
 				for qn in self.questionSet['questions']:
 					if qn['question_id'] == ann['question_id']:
 						imgToQns[ann['image_id']].append((ann['question_id'], qn['question']))
@@ -151,9 +153,9 @@ class COCO:
 			question = str(self.qns[id])
 			tokens = nltk.tokenize.word_tokenize(question.lower())
 			counter.update(tokens)
-		ids = self.dataset['annotations'].keys()
-		for i, id in enumerate(ids):
-			answers = self.dataset['annotations'][id]['answers']
+		anns = self.dataset['annotations']
+		for ann in anns:
+			answers = ann['answers']
 			for answer in answers:
 				tokens = nltk.tokenize.word_tokenize(answer['answer'].lower())
 				counter.update(tokens)
@@ -207,8 +209,8 @@ class CocoDataset(data.Dataset):
 		self.transform = transform
 		self.vocab = self.coco.build_vocab(2)
 		with open(vocab_path, 'wb') as f:
-			pickle.dump(vocab, f)
-		print("Total vocabulary size: {}".format(len(vocab)))
+			pickle.dump(self.vocab, f)
+		print("Total vocabulary size: {}".format(len(self.vocab)))
 		print("Saved the vocabulary wrapper to '{}'".format(vocab_path))
 
 	def __getitem__(self, index):
@@ -230,6 +232,7 @@ class CocoDataset(data.Dataset):
 		question.extend([self.vocab(token) for token in tokens])
 		question.append(self.vocab('<end>'))
 		question = torch.Tensor(question)
+		print(len(question))
 
 		# Convert answer (string) to word ids.
 		tokens = nltk.tokenize.word_tokenize(str(answer).lower())
@@ -248,7 +251,7 @@ def collate_fn(data):
 	data.sort(key=lambda x: x[-1], reverse=True)
 	return data.dataloader.default_collate(data)
 
-def get_loader(root, anns_json, qns_json, vocab_path, transform, batch_size, shuffle, num_workers):
+def get_loader(root, anns_json, qns_json, vocab_path, batch_size, transform=None, shuffle=False, num_workers=0):
 	"""Returns torch.utils.data.DataLoader for custom coco dataset."""
 	coco = CocoDataset(root=root,
 					   anns_json=anns_json,
@@ -263,3 +266,7 @@ def get_loader(root, anns_json, qns_json, vocab_path, transform, batch_size, shu
 											  num_workers=num_workers,
 											  collate_fn=collate_fn)
 	return data_loader
+
+
+if __name__ == "__main__":
+	get_loader('data2/train2014', 'data2/v2_mscoco_train2014_annotations.json', 'data2/v2_OpenEnded_mscoco_train2014_questions.json', 'vocab.pkl', 128)
