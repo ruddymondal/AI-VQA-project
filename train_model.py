@@ -38,6 +38,7 @@ def main(args):
 
             #Forward, backward and optimize
             
+            ft_output = ccn(images)
             lstm_output = lstmqn(question, length)
             outputs = concat(ft_output,lstm_output)
             outputs = outputs[0]
