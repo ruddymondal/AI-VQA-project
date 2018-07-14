@@ -26,7 +26,7 @@ def main(args):
         transforms.Normalize((0.485, 0.456, 0.406), 
                              (0.229, 0.224, 0.225))])
     
-    data_loader = get_loader(args.anns_json, args.qns_json, vocab_path, transform = transform, args.batch_size, shuffle=True, num_workers=args.num_workers) 
+    data_loader = get_loader(args.anns_json, args.qns_json, vocab_path, transform, args.batch_size, shuffle=True, num_workers=args.num_workers) 
 
     #Build models
     cnn = cnn.CNN()
