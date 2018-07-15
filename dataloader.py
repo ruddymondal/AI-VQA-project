@@ -232,17 +232,21 @@ class Vocabulary(object):
 	
 class CocoDataset(data.Dataset):
 	"""COCO Custom Dataset compatible with torch.utils.data.DataLoader."""
-	def __init__(self, root, anns_json, qns_json, vocab_path, index_file, transform=None):
+	def __init__(self, root, anns_json, qns_json, index_file, vocab_file, transform=None):
 		self.root = root
 		self.coco = COCO(anns_json, root, qns_json, index_file)
 		self.transform = transform
-		self.qn_vocab, self.ans_vocab = self.coco.build_vocab(2)
-		with open(vocab_path, 'wb') as f:
-			pickle.dump((self.qn_vocab, self.ans_vocab), f)
-		print("Qn vocab size: {}".format(len(self.qn_vocab)))
-		print("Ans vocab size: {}".format(len(self.ans_vocab)))
-		print("Total vocab size: {}".format(len(self.qn_vocab) + len(self.ans_vocab)))
-		print("Saved the vocabulary wrapper to '{}'".format(vocab_path))
+		if not os.path.isfile(vocab_file):
+			self.qn_vocab, self.ans_vocab = self.coco.build_vocab(2)
+			with open('vocab.pkl', 'wb') as f:
+				pickle.dump((self.qn_vocab, self.ans_vocab), f)
+			print("Saved the vocabulary wrapper to 'vocab.pkl'")
+		else:
+			self.qn_vocab, self.ans_vocab = pickle.load(open(vocab_file, 'rb'))
+
+			print("Qn vocab size: {}".format(len(self.qn_vocab)))
+			print("Ans vocab size: {}".format(len(self.ans_vocab)))
+			print("Total vocab size: {}".format(len(self.qn_vocab) + len(self.ans_vocab)))
 
 	def __getitem__(self, index):
 		"""Returns one data pair (image-question and answer)."""
@@ -281,13 +285,13 @@ def collate_fn(data):
 	data.sort(key=lambda x: x[-1], reverse=True)
 	return data.dataloader.default_collate(data)
 
-def get_loader(root, anns_json, qns_json, vocab_path, batch_size, index_file, transform=None, shuffle=False, num_workers=0):
+def get_loader(root, anns_json, qns_json, batch_size, index_file, vocab_file, transform=None, shuffle=False, num_workers=0):
 	"""Returns torch.utils.data.DataLoader for custom coco dataset."""
 	coco = CocoDataset(root=root,
 					   anns_json=anns_json,
 					   qns_json=qns_json,
-					   vocab_path=vocab_path,
 					   index_file=index_file,
+					   vocab_file=vocab_file,
 					   transform=transform)
 	
 	# Data loader for COCO dataset
@@ -302,9 +306,11 @@ def get_loader(root, anns_json, qns_json, vocab_path, batch_size, index_file, tr
 if __name__ == "__main__":
 	argparser = argparse.ArgumentParser()
 	argparser.add_argument('--index_file', type=str, default="")
+	argparser.add_argument('--vocab_file', type=str, default="")
 	args = argparser.parse_args()
-	coco = COCO('data2/v2_mscoco_train2014_annotations.json',
-			 'data2/train2014',
-			 'data2/v2_OpenEnded_mscoco_train2014_questions.json',
-			 args.index_file)
-	coco.info()
+	get_loader('data2/train2014',
+				'data2/v2_mscoco_train2014_annotations.json',
+				'data2/v2_OpenEnded_mscoco_train2014_questions.json',
+				128,
+				args.index_file,
+				args.vocab_file)
