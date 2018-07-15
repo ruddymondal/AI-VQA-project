@@ -7,6 +7,7 @@ import pickle
 import numpy as np
 import nltk
 import json
+import itertools
 import argparse
 from PIL import Image
 from collections import defaultdict, Counter
@@ -37,7 +38,7 @@ class COCO:
 		self.createIndex(index_file)
 
 	def createIndex(self, index_file):
-		if index_file == "":
+		if not os.path.isfile(index_file):
 			# create index
 			print('creating index...')
 			qns, imgs = {}, {}
@@ -45,7 +46,7 @@ class COCO:
 			if 'annotations' in self.dataset:
 				for ann in self.dataset['annotations']:
 					imgToAnns[ann['image_id']].append(ann)
-					imgs[ann['image_id']] = 'COCO_' + self.image_folder.split('/')[-1] + '_%12d.JPG' % (ann['image_id'])
+					imgs[ann['image_id']] = 'COCO_' + self.image_folder.split('/')[-1] + '_%012d.jpg' % (ann['image_id'])
 					for qn in self.questionSet['questions']:
 						if qn['question_id'] == ann['question_id']:
 							imgToQns[ann['image_id']].append((ann['question_id'], qn['question']))
@@ -87,8 +88,8 @@ class COCO:
 		"""
 		Get anns that satisfy given filter conditions. default skips that filter
 		"""
-		imgIds = imgIds if _isArrayLike(imgIds) else [imgIds]
-		qnIds = qnIds if _isArrayLike(qnIds) else [qnIds]
+		imgIds = [imgIds] if type(imgIds) == str or type(imgIds) == int else imgIds
+		qnIds = [qnIds] if type(qnIds) == str or type(qnIds) == int else qnIds
 
 		if len(imgIds) == len(qnIds) == 0:
 			anns = self.dataset['annotations']
@@ -105,8 +106,8 @@ class COCO:
 		'''
 		Get img ids that satisfy given filter conditions.
 		'''
-		imgIds = imgIds if _isArrayLike(imgIds) else [imgIds]
-		qnIds = qnIds if _isArrayLike(qnIds) else [qnIds]
+		imgIds = [imgIds] if type(imgIds) == str or type(imgIds) == int else imgIds
+		qnIds = [qnIds] if type(qnIds) == str or type(qnIds) == int else qnIds
 
 		if len(imgIds) == len(qnIds) == 0:
 			ids = self.imgs.keys()
@@ -114,30 +115,30 @@ class COCO:
 			ids = set(imgIds)
 			for i, qnId in enumerate(qnIds):
 				if i == 0 and len(ids) == 0:
-					ids = set(qnId[:-3])
+					ids = set(str(qnId)[:-3])
 				else:
-					ids &= set(qnId[:-3])
+					ids &= set(str(qnId)[:-3])
 		return list(ids)
 
 	def loadQns(self, ids=[]):
 		"""
 		Load qns with the specified ids.
-		:param ids (int array)       : integer ids specifying qns
+		:param ids (str array)       : str ids specifying qns
 		:return: qns (str array)     : loaded qn strings
 		"""
-		if _isArrayLike(ids):
-			return [self.qns[id] for id in ids]
-		elif type(ids) == int:
-			return [self.qns[ids]]
+		if type(ids) == str or type(ids) == int:
+			return [self.qns[str(ids)]]
+		elif _isArrayLike(ids):
+			return [self.qns[str(id)] for id in ids]
 
 	def loadImgs(self, ids=[]):
 		"""
 		Load imgs with the specified ids.
 		"""
 		if _isArrayLike(ids):
-			return [Image.open(os.path.join(self.image_folder, self.imgs[id])) for id in ids]
+			return [Image.open(os.path.normpath(os.path.join(self.image_folder, self.imgs[id]))) for id in ids]
 		elif type(ids) == int:
-			return [Image.open(os.path.join(self.image_folder, self.imgs[ids]))]
+			return [Image.open(os.path.normpath(os.path.join(self.image_folder, self.imgs[ids])))]
 
 	def loadRes(self, resFile):
 		"""
@@ -171,6 +172,20 @@ class COCO:
 			question = str(self.qns[id])
 			tokens = nltk.tokenize.word_tokenize(question.lower())
 			counter.update(tokens)
+		
+		words = [word for word, cnt in counter.items() if cnt >= threshold]
+
+		vocab_questions = Vocabulary()
+		vocab_questions.add_word('<pad>')
+		vocab_questions.add_word('<start>')
+		vocab_questions.add_word('<end>')
+		vocab_questions.add_word('<unk>')
+
+		# Add the words to the vocabulary.
+		for i, word in enumerate(words):
+			vocab_questions.add_word(word)
+
+		counter = Counter()
 		anns = self.dataset['annotations']
 		for ann in anns:
 			answers = ann['answers']
@@ -178,23 +193,19 @@ class COCO:
 				tokens = nltk.tokenize.word_tokenize(answer['answer'].lower())
 				counter.update(tokens)
 
-		# If the word frequency is less than 'threshold', then the word is discarded.
 		words = [word for word, cnt in counter.items() if cnt >= threshold]
 
-		# Create a vocab wrapper and add some special tokens.
-		vocab = Vocabulary()
-		vocab.add_word('<pad>')
-		vocab.add_word('<start>')
-		vocab.add_word('<end>')
-		vocab.add_word('<unk>')
+		vocab_answers = Vocabulary()
+		vocab_answers.add_word('<pad>')
+		vocab_answers.add_word('<start>')
+		vocab_answers.add_word('<end>')
+		vocab_answers.add_word('<unk>')
 
 		# Add the words to the vocabulary.
 		for i, word in enumerate(words):
-			vocab.add_word(word)
-		return vocab
+			vocab_answers.add_word(word)
 
-	def getQnLength(self, qnId):
-		return len(self.qns[qnId].split())
+		return vocab_questions, vocab_answers
 
 
 class Vocabulary(object):
@@ -225,10 +236,12 @@ class CocoDataset(data.Dataset):
 		self.root = root
 		self.coco = COCO(anns_json, root, qns_json, index_file)
 		self.transform = transform
-		self.vocab = self.coco.build_vocab(2)
+		self.qn_vocab, self.ans_vocab = self.coco.build_vocab(2)
 		with open(vocab_path, 'wb') as f:
-			pickle.dump(self.vocab, f)
-		print("Total vocabulary size: {}".format(len(self.vocab)))
+			pickle.dump((self.qn_vocab, self.ans_vocab), f)
+		print("Qn vocab size: {}".format(len(self.qn_vocab)))
+		print("Ans vocab size: {}".format(len(self.ans_vocab)))
+		print("Total vocab size: {}".format(len(self.qn_vocab) + len(self.ans_vocab)))
 		print("Saved the vocabulary wrapper to '{}'".format(vocab_path))
 
 	def __getitem__(self, index):
@@ -246,18 +259,17 @@ class CocoDataset(data.Dataset):
 		# Convert question (string) to word ids.
 		tokens = nltk.tokenize.word_tokenize(str(coco.qns[qn_id]).lower())
 		question = []
-		question.append(self.vocab('<start>'))
-		question.extend([self.vocab(token) for token in tokens])
-		question.append(self.vocab('<end>'))
+		question.append(self.qn_vocab('<start>'))
+		question.extend([self.qn_vocab(token) for token in tokens])
+		question.append(self.qn_vocab('<end>'))
 		question = torch.Tensor(question)
-		print(len(question))
 
 		# Convert answer (string) to word ids.
 		tokens = nltk.tokenize.word_tokenize(str(answer).lower())
 		answer = []
-		answer.append(self.vocab('<start>'))
-		answer.extend([self.vocab(token) for token in tokens])
-		answer.append(self.vocab('<end>'))
+		answer.append(self.ans_vocab('<start>'))
+		answer.extend([self.ans_vocab(token) for token in tokens])
+		answer.append(self.ans_vocab('<end>'))
 		target = torch.Tensor(answer)
 		return (image, question), target
 
@@ -291,10 +303,8 @@ if __name__ == "__main__":
 	argparser = argparse.ArgumentParser()
 	argparser.add_argument('--index_file', type=str, default="")
 	args = argparser.parse_args()
-	coco = CocoDataset(root='data2/train2014',
-					   anns_json='data2/v2_mscoco_train2014_annotations.json',
-					   qns_json='data2/v2_OpenEnded_mscoco_train2014_questions.json',
-					   vocab_path='vocab.pkl',
-					   index_file=args.index_file,
-					   transform=None)
-	coco[-1]
+	coco = COCO('data2/v2_mscoco_train2014_annotations.json',
+			 'data2/train2014',
+			 'data2/v2_OpenEnded_mscoco_train2014_questions.json',
+			 args.index_file)
+	coco.info()
