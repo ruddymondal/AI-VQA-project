@@ -135,10 +135,10 @@ class COCO:
 		"""
 		Load imgs with the specified ids.
 		"""
-		if _isArrayLike(ids):
-			return [Image.open(os.path.normpath(os.path.join(self.image_folder, self.imgs[id]))) for id in ids]
-		elif type(ids) == int:
-			return [Image.open(os.path.normpath(os.path.join(self.image_folder, self.imgs[ids])))]
+		if type(ids) == str or type(ids) == int:
+			return [Image.open(os.path.normpath(os.path.join(self.image_folder, self.imgs[str(ids)])))]
+		elif _isArrayLike(ids):
+			return [Image.open(os.path.normpath(os.path.join(self.image_folder, self.imgs[str(id)]))) for id in ids]
 
 	def loadRes(self, resFile):
 		"""
