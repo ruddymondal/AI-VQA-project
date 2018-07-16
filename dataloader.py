@@ -261,8 +261,7 @@ class CocoDataset(data.Dataset):
 			image = self.transform(image)
 
 		# Convert question (string) to word ids.
-		tokens = nltk.tokenize.word_tokenize(str(coco.qns[qn_id]).lower())
-		print(tokens)
+		tokens = nltk.tokenize.word_tokenize(str(coco.qns[str(qn_id)]).lower())
 		question = []
 		question.append(self.qn_vocab('<start>'))
 		question.extend([self.qn_vocab(token) for token in tokens])
@@ -271,7 +270,6 @@ class CocoDataset(data.Dataset):
 
 		# Convert answer (string) to word ids.
 		tokens = nltk.tokenize.word_tokenize(str(answer).lower())
-		print(tokens)
 		answer = []
 		answer.append(self.ans_vocab('<start>'))
 		answer.extend([self.ans_vocab(token) for token in tokens])
@@ -282,10 +280,6 @@ class CocoDataset(data.Dataset):
 	def __len__(self):
 		return len(self.coco.dataset['annotations'])
 
-
-def collate_fn(data):
-	data.sort(key=lambda x: x[-1], reverse=True)
-	return data.dataloader.default_collate(data)
 
 def get_loader(root, anns_json, qns_json, batch_size, index_file, vocab_file, transform=None, shuffle=False, num_workers=0):
 	"""Returns torch.utils.data.DataLoader for custom coco dataset."""
@@ -300,8 +294,7 @@ def get_loader(root, anns_json, qns_json, batch_size, index_file, vocab_file, tr
 	data_loader = torch.utils.data.DataLoader(dataset=coco, 
 											  batch_size=batch_size,
 											  shuffle=shuffle,
-											  num_workers=num_workers,
-											  collate_fn=collate_fn)
+											  num_workers=num_workers)
 	return data_loader
 
 
@@ -310,9 +303,9 @@ if __name__ == "__main__":
 	argparser.add_argument('--index_file', type=str, default="")
 	argparser.add_argument('--vocab_file', type=str, default="")
 	args = argparser.parse_args()
-	get_loader('data2/train2014',
-				'data2/v2_mscoco_train2014_annotations.json',
-				'data2/v2_OpenEnded_mscoco_train2014_questions.json',
+	get_loader('data/train2014',
+				'data/v2_mscoco_train2014_annotations.json',
+				'data/v2_OpenEnded_mscoco_train2014_questions.json',
 				128,
 				args.index_file,
 				args.vocab_file)
