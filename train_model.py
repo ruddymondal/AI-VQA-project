@@ -1,11 +1,9 @@
 import argparse
 import torch
-import cnn
-import lstm
-import concat
+from concat import CNN, LSTMquestion, Concat
 from torch.nn.utils.rnn import pack_padded_sequence
 from torchvision import transforms
-from data_loader import get_loader
+from dataloader import *
 import torch.nn as nn
 import numpy as np
 import os
@@ -26,35 +24,49 @@ def main(args):
         transforms.Normalize((0.485, 0.456, 0.406), 
                              (0.229, 0.224, 0.225))])
     
-    data_loader = get_loader(args.anns_json, args.qns_json, vocab_path, transform, args.batch_size, shuffle=True, num_workers=args.num_workers) 
+    coco = CocoDataset(root='data/train2014',
+                       anns_json=args.anns_json,
+                       qns_json=args.qns_json,
+                       vocab_file=args.vocab_path,
+                       index_file=args.index_file,
+                       transform=transform)
+
+    # Data loader for COCO dataset
+    data_loader = torch.utils.data.DataLoader(dataset=coco,
+                                          batch_size=args.batch_size,
+                                          shuffle=True,
+                                          num_workers=args.num_workers,
+                                          collate_fn=collate_fn)
 
     #Build models
-    cnn = cnn.CNN()
-    lstmqn = lstm.LSTMQuestion(args.vocab_size).to(device)
-    concat = concat.Concat(args.concat_size).to(device)
+    cnn_model = CNN()
+    lstmqn = LSTMquestion(26314).to(device)
 
     #Loss and optimizer
     criterion = nn.CrossEntropyLoss
-    params = list(concat.parameters()) + list(cnn.parameters()) + list(lstm.parameters())
-    optimizer = torch.optim.Adam(params, lr=args.learning_rate)
-
     #Train the models
     total_step = len(data_loader)
     for epoch in range(args.num_epochs):
-        for i, (images,annotations,questions,lengths) in enumerate(dataloader):
-            
+        for i, ((images, qns), targets) in enumerate(data_loader):
+
             images = images.to(device)
             question = questions.to(device)
             targets = annotations.to(device)
 
             #Forward, backward and optimize
             
-            ft_output = ccn(images)
-            lstm_output = lstmqn(question, length)
-            outputs = concat(ft_output,lstm_output)
+            ft_output = cnn_model(images)
+            lstm_output = lstmqn(question, len(question))
+            concat_ft = torch.concat((ft_output,lstm_output),0)
+            concat_dim = concat_ft.size[1]
+            print(concat_dim)
+            concat = Concat(concat_dim).to(device)
+            outputs = concat(concat_ft)
             outputs = outputs[0,len(targets)]
+            params = list(concat.parameters()) + list(cnn.parameters()) + list(lstm.parameters())
+            optimizer = torch.optim.Adam(params, lr=args.learning_rate)
             loss = criterion(outputs,targets)
-            cnn.zero_grad()
+            cnn_model.zero_grad()
             lstmqn.zero_grad()
             concat.zero_grad()
             loss.backward()
@@ -63,8 +75,8 @@ def main(args):
             # Print log info
             if i % args.log_step == 0:
                 print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}, Perplexity: {:5.4f}'
-                      .format(epoch, args.num_epochs, i, total_step, loss.item(), np.exp(loss.item()))) 
-                
+                      .format(epoch, args.num_epochs, i, total_step, loss.item(), np.exp(loss.item())))
+            
             # Save the model checkpoints
             if (i+1) % args.save_step == 0:
                 torch.save(lstmqn.state_dict(), os.path.join(
@@ -83,6 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('--image_dir', type=str, default='data/train2014', help='directory for resized images')
     parser.add_argument('--anns_json', type=str, default='data/v2_mscoco_train2014_annotations.json', help='path for train annotation json file')
     parser.add_argument('--qns_json', type=str, default='data/v2_OpenEnded_mscoco_train2014_questions.json', help='path for qns')
+    parser.add_argument('--index_file', type=str, default='index_data.json', help='path for index file')
     parser.add_argument('--log_step', type=int , default=10, help='step size for prining log info')
     parser.add_argument('--save_step', type=int , default=1000, help='step size for saving trained models')
     
@@ -98,8 +111,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(args)
     main(args)
-
-            
-            
 
         
