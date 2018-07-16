@@ -261,6 +261,7 @@ class CocoDataset(data.Dataset):
 			image = self.transform(image)
 
 		# Convert question (string) to word ids.
+		print(qn_id)
 		tokens = nltk.tokenize.word_tokenize(str(coco.qns[qn_id]).lower())
 		question = []
 		question.append(self.qn_vocab('<start>'))
