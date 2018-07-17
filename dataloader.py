@@ -284,8 +284,8 @@ class CocoDataset(data.Dataset):
 def collate_fn(data):
     """Creates mini-batch tensors from the list of tuples ((image, question), target).
     """
-    # Sort a data list by target length (descending order).
-    data.sort(key=lambda x: len(x[1]), reverse=True)
+    # Sort a data list by qn length (descending order).
+    data.sort(key=lambda x: len(x[0][1]), reverse=True)
 
     images = [item[0][0] for item in data]
     questions = [item[0][1] for item in data]
@@ -295,20 +295,20 @@ def collate_fn(data):
     images = torch.stack(images, 0)
 
     # Merge questions (from tuple of 1D tensor to 2D tensor).
-    lengths = [len(qn) for qn in questions]
-    qns = torch.zeros(len(questions), max(lengths)).long()
+    qn_lengths = [len(qn) for qn in questions]
+    qns = torch.zeros(len(questions), max(qn_lengths)).long()
     for i, qn in enumerate(questions):
-        end = lengths[i]
+        end = qn_lengths[i]
         qns[i, :end] = qn[:end]
 
     # Merge targets (from tuple of 1D tensor to 2D tensor).
-    lengths = [len(ans) for ans in targets]
-    answers = torch.zeros(len(targets), max(lengths)).long()
+    ans_lengths = [len(ans) for ans in targets]
+    answers = torch.zeros(len(targets), max(ans_lengths)).long()
     for i, ans in enumerate(targets):
-        end = lengths[i]
+        end = ans_lengths[i]
         answers[i, :end] = ans[:end]
         
-    return (images, qns), answers
+    return (images, qns), answers, (qn_lengths, ans_lengths)
 
 
 def get_loader(root, anns_json, qns_json, batch_size, index_file, vocab_file, transform=None, shuffle=False, num_workers=0):
