@@ -46,7 +46,7 @@ def main(args):
     #Train the models
     total_step = len(data_loader)
     for epoch in range(args.num_epochs):
-        for i, ((images, qns), targets) in enumerate(data_loader):
+        for i, ((images, qns), targets, (qn_lengths, ans_lengths)) in enumerate(data_loader):
 
             images = images.to(device)
             question = qns.to(device)
@@ -55,9 +55,9 @@ def main(args):
             #Forward, backward and optimize
             print(images.shape)
             ft_output = cnn_model(images)
-            lstm_output = lstmqn(question, len(question))
+            lstm_output = lstmqn(question, qn_lengths)
             print(lstm_output.shape)
-            concat_ft = torch.concat((ft_output,lstm_output),0)
+            concat_ft = torch.cat((ft_output,lstm_output),0)
             concat_dim = concat_ft.shape[1]
             print(concat_dim)
             concat = Concat(concat_dim).to(device)
