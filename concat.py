@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torchvision.models as models
+from models import resnet
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.nn.utils.rnn import pack_padded_sequence
@@ -10,7 +10,7 @@ from dataloader import *
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
-        self.resnet = models.resnet152(pretrained=True)
+        self.resnet = resnet.resnet152(pretrained=True)
     
     def forward(self, images):
         with torch.no_grad():
