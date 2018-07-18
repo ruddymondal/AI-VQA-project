@@ -230,6 +230,24 @@ class Vocabulary(object):
         return len(self.word2idx)
 
     
+class Wrapper(torch.LongTensor):
+    def __init__(self, tensor):
+        '''
+        Wrapper constructor.
+        @param tensor: tensor to wrap
+        '''
+        # wrap the tensor
+        self._tensor = tensor
+
+    def __getattr__(self, attr):
+        # NOTE do not use hasattr - it goes into infinite recursion
+        if attr in self.__dict__:
+            # this object has it
+            return getattr(self, attr)
+        # proxy to the wrapped tensor
+        return getattr(self._tensor, attr)
+
+
 class CocoDataset(data.Dataset):
     """COCO Custom Dataset compatible with torch.utils.data.DataLoader."""
     def __init__(self, root, anns_json, qns_json, index_file, vocab_file, transform=None):
@@ -307,6 +325,7 @@ def collate_fn(data):
     for i, ans in enumerate(targets):
         end = ans_lengths[i]
         answers[i, :end] = ans[:end]
+        answers[i] = Wrapper(answers[i])
         
     return (images, qns), answers, (qn_lengths, ans_lengths)
 
