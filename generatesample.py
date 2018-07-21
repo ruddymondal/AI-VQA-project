@@ -62,8 +62,8 @@ if __name__ == '__main__':
     parser.add_argument('--anns_json', type=str, default='data/v2_mscoco_train2014_annotations.json', help='path for train annotation json file')
     parser.add_argument('--qns_json', type=str, default='data/v2_OpenEnded_mscoco_train2014_questions.json', help='path for qns')
     parser.add_argument('--index_file', type=str, default='index_data.json', help='path for index file')
-    parser.add_argument('--lstmqn_path', type=str, default='models/lstmqn-2-1000.ckpt', help='path for trained lstmqn model')
-    parser.add_argument('--concat_path', type=str, default='models/concat-2-1000.ckpt', help='path for trained concat model')
+    parser.add_argument('--lstmqn_path', type=str, default='models/lstmqn-5-3000.ckpt', help='path for trained lstmqn model')
+    parser.add_argument('--concat_path', type=str, default='models/concat-5-3000.ckpt', help='path for trained concat model')
     # Model parameters
     parser.add_argument('--embed_size', type=int , default=300, help='dimension of word embedding vectors')
     parser.add_argument('--hidden_size', type=int , default=1024, help='dimension of lstm hidden states')
