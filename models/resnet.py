@@ -1,7 +1,6 @@
 import torch.nn as nn
-import torch.utils.model_zoo as model_zoo
 import math
-from torch.autograd import Variable
+import torch.utils.model_zoo as model_zoo
 
 
 model_urls = {
@@ -48,38 +47,6 @@ class Bottleneck(nn.Module):
         return out
 
 
-def kaiming_normal(tensor, a=0, mode='fan_in'):
-    """Fills the input Tensor or Variable with values according to the method
-    described in "Delving deep into rectifiers: Surpassing human-level
-    performance on ImageNet classification" - He, K. et al. (2015), using a
-    normal distribution. The resulting tensor will have values sampled from
-    :math:`N(0, std)` where
-    :math:`std = \sqrt{2 / ((1 + a^2) \\times fan\_in)}`. Also known as He
-    initialisation.
-
-    Args:
-        tensor: an n-dimensional torch.Tensor or autograd.Variable
-        a: the negative slope of the rectifier used after this layer (0 for ReLU
-            by default)
-        mode: either 'fan_in' (default) or 'fan_out'. Choosing `fan_in`
-            preserves the magnitude of the variance of the weights in the
-            forward pass. Choosing `fan_out` preserves the magnitudes in the
-            backwards pass.
-
-    Examples:
-        >>> w = torch.Tensor(3, 5)
-        >>> nn.init.kaiming_normal(w, mode='fan_out')
-    """
-    if isinstance(tensor, Variable):
-        kaiming_normal(tensor.data, a=a, mode=mode)
-        return tensor
-
-    fan = nn.init._calculate_correct_fan(tensor, mode)
-    gain = nn.init.calculate_gain('relu', a)
-    std = gain / math.sqrt(fan)
-    return tensor.normal_(0, std)
-
-
 class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000):
@@ -99,10 +66,10 @@ class ResNet(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                kaiming_normal(m.weight, mode='fan_out')
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant(m.weight, 1)
-                nn.init.constant(m.bias, 0)
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
