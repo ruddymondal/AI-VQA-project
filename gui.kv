@@ -1,0 +1,29 @@
+#:kivy 1.10.0
+
+
+GUILoader:
+    FloatLayout: 
+        Image: 
+            id: img
+            size_hint: (.5, .5)
+            pos_hint: {'center_x': .5, 'center_y': .6}
+        Label:
+            id: question
+            text: "placeholder"
+            size_hint: (.5, .1)
+            pos_hint: {'center_x': .5, 'center_y': .2}
+        BoxLayout:
+            orientation: 'horizontal'
+            Button: 
+                id: get_img
+                text: "Get new image"
+                on_release: root.load_new_img()
+            Button: 
+                id: get_qn
+                text: "Get new question" 
+                on_release: root.load_new_qn()
+        BoxLayout: 
+            id: answers
+            orientation: 'vertical'
+
+
