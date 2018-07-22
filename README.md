@@ -11,4 +11,4 @@ Then run the app with
 
 Adeeb Hossain - generatesample.py, train_model.py;
 Pammela Ng - config.py, generatesample.py, gui.kv, gui.py;
-Tan Li Xuan - models/resnet.py, dataloader.py, net.py, train_model.py;
+Tan Li Xuan - models/resnet.py, dataloader.py, net.py, train_model.py, generatesample.py;
