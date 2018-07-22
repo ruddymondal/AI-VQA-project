@@ -56,7 +56,8 @@ def main(args):
             #Forward, backward, and optimize
             outputs = net(images, qns, qn_lengths)
             m = nn.Linear(targets.shape[1], 1)
-            loss = criterion(outputs, m(targets))
+            targets = m(targets).long()
+            loss = criterion(outputs, targets)
 
             net.zero_grad()
             loss.backward()
