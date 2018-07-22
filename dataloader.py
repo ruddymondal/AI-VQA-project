@@ -1,5 +1,4 @@
 import torch
-import torchvision.transforms as transforms
 import torch.utils.data as data
 import time
 import os
@@ -8,9 +7,9 @@ import numpy as np
 import nltk
 import json
 import itertools
-import argparse
 from PIL import Image
 from collections import defaultdict, Counter
+
 
 def _isArrayLike(obj):
     return hasattr(obj, '__iter__') and hasattr(obj, '__len__')
@@ -230,24 +229,6 @@ class Vocabulary(object):
         return len(self.word2idx)
 
     
-class Wrapper(torch.LongTensor):
-    def __init__(self, tensor):
-        '''
-        Wrapper constructor.
-        @param tensor: tensor to wrap
-        '''
-        # wrap the tensor
-        self._tensor = tensor
-
-    def __getattr__(self, attr):
-        # NOTE do not use hasattr - it goes into infinite recursion
-        if attr in self.__dict__:
-            # this object has it
-            return getattr(self, attr)
-        # proxy to the wrapped tensor
-        return getattr(self._tensor, attr)
-
-
 class CocoDataset(data.Dataset):
     """COCO Custom Dataset compatible with torch.utils.data.DataLoader."""
     def __init__(self, root, anns_json, qns_json, index_file, vocab_file, transform=None):
@@ -321,13 +302,12 @@ def collate_fn(data):
 
     # Merge targets (from tuple of 1D tensor to 2D tensor).
     ans_lengths = [len(ans) for ans in targets]
-    answers = torch.zeros(len(targets), max(ans_lengths)).long()
+    answers = torch.zeros(len(targets), max(ans_lengths))
     for i, ans in enumerate(targets):
         end = ans_lengths[i]
         answers[i, :end] = ans[:end]
-        answers[i] = Wrapper(answers[i])
         
-    return (images, qns), answers, (qn_lengths, ans_lengths)
+    return (images, qns), answers, qn_lengths
 
 
 def get_loader(root, anns_json, qns_json, batch_size, index_file, vocab_file, transform=None, shuffle=False, num_workers=0):
@@ -346,16 +326,3 @@ def get_loader(root, anns_json, qns_json, batch_size, index_file, vocab_file, tr
                                               num_workers=num_workers,
                                               collate_fn=collate_fn)
     return data_loader
-
-
-if __name__ == "__main__":
-    argparser = argparse.ArgumentParser()
-    argparser.add_argument('--index_file', type=str, default="")
-    argparser.add_argument('--vocab_file', type=str, default="")
-    args = argparser.parse_args()
-    get_loader('data/train2014',
-                'data/v2_mscoco_train2014_annotations.json',
-                'data/v2_OpenEnded_mscoco_train2014_questions.json',
-                128,
-                args.index_file,
-                args.vocab_file)
