@@ -45,7 +45,7 @@ class Generator():
         self.lstmqn.eval()
 
     def get_image(i):
-        (images, qns), targets, (qn_lengths, ans_lengths) = self.data_loader[i]
+        (images, qns), targets = self.data_loader[i]
         self.images = images.to(device)
         self.qns = qns.to(device)
         ft_output = self.cnn_model(self.images)
