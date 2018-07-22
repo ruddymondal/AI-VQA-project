@@ -1,27 +1,26 @@
 import argparse
 import torch
-from concat import CNN, LSTMquestion, Concat
-from torchvision import transforms
-from dataloader import *
 import torch.nn as nn
 import numpy as np
 import os
+from dataloader import *
+from net import Net
+from torch.autograd import Variable
+from torchvision import transforms
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+use_cuda = torch.cuda.is_available()
 
 
 def main(args):
-
     if not os.path.exists(args.model_path):
         os.makedirs(args.model_path)
 
-    transform = transforms.Compose([transforms.RandomCrop(args.crop_size),
-                                    transforms.RandomHorizontalFlip(),
+    transform = transforms.Compose([transforms.CenterCrop(args.crop_size),
                                     transforms.ToTensor(),
                                     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
-    coco = CocoDataset(root='data/train2014',
+    coco = CocoDataset(root=args.image_dir,
                        anns_json=args.anns_json,
                        qns_json=args.qns_json,
                        vocab_file=args.vocab_path,
@@ -31,39 +30,35 @@ def main(args):
     # Data loader for COCO dataset
     data_loader = torch.utils.data.DataLoader(dataset=coco, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, collate_fn=collate_fn)
 
-    #Build models
-    cnn_model = CNN().to(device)
-    lstmqn = LSTMquestion(len(coco.qn_vocab)).to(device)
+    net = nn.DataParallel(Net(len(coco.qn_vocab)))
+    if use_cuda:
+        net = net.cuda()
+    net.train()
 
-    #Loss
     criterion = nn.CrossEntropyLoss()
+
+    params = [p for p in net.parameters() if p.requires_grad]
+    optimizer = torch.optim.Adam(params, lr=args.learning_rate)
 
     total_step = len(data_loader)
 
+    img_params = {'volatile': False}
+    target_params = {'requires_grad': False}
+
     #Train the models
     for epoch in range(args.num_epochs):
-        for i, ((images, qns), targets, (qn_lengths, ans_lengths)) in enumerate(data_loader):
+        for i, ((images, qns), targets, qn_lengths) in enumerate(data_loader):
+            if use_cuda:
+                images, qns, targets, qn_lengths = images.cuda(), qns.cuda(), targets.cuda(), qn_lengths.cuda()
 
-            images = images.to(device)
-            qns = qns.to(device)
-            targets = targets.to(device)
+            images, qns, targets = Variable(images, **img_params), Variable(qns), Variable(targets, **target_params)
 
             #Forward, backward, and optimize
-            ft_output = cnn_model(images)
-            lstm_output = lstmqn(qns, qn_lengths)
-            concat_ft = torch.cat((ft_output,lstm_output), 1)
-            concat_dim = concat_ft.shape[1]
-            concat = Concat(concat_dim).to(device)
+            outputs = net(images, qns, qn_lengths)
+            m = nn.Linear(targets.shape[1], 1)
+            loss = criterion(outputs, m(targets))
 
-            outputs = concat(concat_ft)
-#            outputs = outputs[0,len(targets)]
-            params = list(concat.parameters()) + list(cnn_model.parameters()) + list(lstmqn.parameters())
-            cnn_model.zero_grad()
-            lstmqn.zero_grad()
-            concat.zero_grad()
-
-            loss = criterion(outputs,targets)
-            optimizer = torch.optim.Adam(params, lr=args.learning_rate)
+            net.zero_grad()
             loss.backward()
             optimizer.step()
 
@@ -74,32 +69,31 @@ def main(args):
 
             # Save the model checkpoints
             if (i + 1) % args.save_step == 0:
-                torch.save(lstmqn.state_dict(), os.path.join(args.model_path, 'lstmqn-{}-{}.ckpt'.format(epoch + 1, i + 1)))
-                torch.save(concat.state_dict(), os.path.join(args.model_path, 'concat-{}-{}.ckpt'.format(epoch + 1, i + 1)))
-                torch.save(concat.state_dict(), os.path.join(args.model_path, 'cnn-{}-{}.ckpt'.format(epoch + 1, i + 1)))
+                torch.save(net.state_dict(), os.path.join(args.model_path, 'net-{}-{}.ckpt'.format(epoch + 1, i + 1)))
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default='models/' , help='path for saving trained models')
-    parser.add_argument('--crop_size', type=int, default=229 , help='size for randomly cropping images')
-    parser.add_argument('--vocab_path', type=str, default='vocab.pkl', help='path for vocabulary wrapper')
-    parser.add_argument('--image_dir', type=str, default='data/train2014', help='directory for resized images')
-    parser.add_argument('--anns_json', type=str, default='data/v2_mscoco_train2014_annotations.json', help='path for train annotation json file')
-    parser.add_argument('--qns_json', type=str, default='data/v2_OpenEnded_mscoco_train2014_questions.json', help='path for qns')
-    parser.add_argument('--index_file', type=str, default='index_data.json', help='path for index file')
-    parser.add_argument('--log_step', type=int , default=10, help='step size for prining log info')
-    parser.add_argument('--save_step', type=int , default=1000, help='step size for saving trained models')
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('--model_path', type=str, default="models/", help='path for saving trained models')
+    argparser.add_argument('--crop_size', type=int, default=448, help='size for cropping images')
+    argparser.add_argument('--vocab_path', type=str, default="vocab.pkl", help='path to saved vocabulary file')
+    argparser.add_argument('--image_dir', type=str, default="data/train2014", help='image directory')
+    argparser.add_argument('--anns_json', type=str, default="data/v2_mscoco_train2014_annotations.json", help='path to annotations json')
+    argparser.add_argument('--qns_json', type=str, default="data/v2_OpenEnded_mscoco_train2014_questions.json", help='path to qns json')
+    argparser.add_argument('--index_file', type=str, default="index_data.json", help='path to index file')
+    argparser.add_argument('--log_step', type=int , default=10, help='step size for printing info')
+    argparser.add_argument('--save_step', type=int , default=1000, help='step size for saving trained models')
 
     # Model parameters
-    parser.add_argument('--embed_size', type=int , default=300, help='dimension of word embedding vectors')
-    parser.add_argument('--hidden_size', type=int , default=1024, help='dimension of lstm hidden states')
-    parser.add_argument('--num_layers', type=int , default=1, help='number of layers in lstm')
+    argparser.add_argument('--embed_size', type=int , default=300, help='dimension of word embedding vectors')
+    argparser.add_argument('--hidden_size', type=int , default=1024, help='dimension of lstm hidden states')
+    argparser.add_argument('--num_layers', type=int , default=1, help='number of layers in lstm')
 
-    parser.add_argument('--num_epochs', type=int, default=5)
-    parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--num_workers', type=int, default=2)
-    parser.add_argument('--learning_rate', type=float, default=0.001)
-    args = parser.parse_args()
+    argparser.add_argument('--num_epochs', type=int, default=5)
+    argparser.add_argument('--batch_size', type=int, default=32)
+    argparser.add_argument('--num_workers', type=int, default=0)
+    argparser.add_argument('--learning_rate', type=float, default=0.001)
+    
+    args = argparser.parse_args()
     print(args)
     main(args)
