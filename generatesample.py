@@ -5,7 +5,7 @@ import argparse
 import pickle 
 import os
 from torchvision import transforms 
-from build_vocab import Vocabulary
+from dataloader import *
 from net import CNN, LSTMqn, Concat
 from PIL import Image
 import config
@@ -39,7 +39,7 @@ class Generator():
 
         # Build models
         self.cnn_model = CNN().eval()
-        self.lstmqn = LSTM(len(coco.qn_vocab).eval()
+        self.lstmqn = LSTM(len(coco.qn_vocab)).eval()
 
         self.lstmqn.load_state_dict(torch.load(args["lstmqn_path"]))
         self.lstmqn.eval()
