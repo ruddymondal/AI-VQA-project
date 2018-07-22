@@ -1,53 +1,48 @@
-import torch
-import matplotlib.pyplot as plt
-import numpy as np 
 import argparse
-import pickle 
+import torch
+import numpy as np 
 import os
+import pickle 
 from torchvision import transforms 
 from dataloader import *
-from net import CNN, LSTMqn, Concat
-from PIL import Image
+from net import *
 import config
 
-# Device configuration
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+use_cuda = torch.cuda.is_available()
 
 class Generator():
     def __init__(self):
         args = config.settings
 
         # Image preprocessing
-        transform = transforms.Compose([
-            transforms.ToTensor(), 
-            transforms.Normalize((0.485, 0.456, 0.406), 
-                                (0.229, 0.224, 0.225))])
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
         
-        coco = CocoDataset(root='data/train2014',
-                        anns_json=args["anns_json"],
-                        qns_json=args["qns_json"],
-                        vocab_file=args["vocab_path"],
-                        index_file=args["index_file"],
-                        transform=transform)
+        coco = CocoDataset(root='data/val2014',
+                           anns_json='data/v2_mscoco_val2014_annotations.json',
+                           qns_json='data/v2_OpenEnded_mscoco_val2014_questions.json',
+                           vocab_file='',
+                           index_file='',
+                           transform=transform)
 
         # Data loader for COCO dataset
-        self.data_loader = torch.utils.data.DataLoader(dataset=coco, batch_size=args["batch_size"], shuffle=True, num_workers=args["num_workers"], collate_fn=collate_fn)
+        self.data_loader = torch.utils.data.DataLoader(dataset=coco, batch_size=args["batch_size"], num_workers=args["num_workers"], collate_fn=collate_fn)
 
-        # Load vocabulary wrapper
-        with open(args["vocab_path"], 'rb') as f:
-            vocab = pickle.load(f)
+        self.ans_vocab = coco.ans_vocab
 
         # Build models
-        self.cnn_model = CNN().eval()
-        self.lstmqn = LSTM(len(coco.qn_vocab)).eval()
-
-        self.lstmqn.load_state_dict(torch.load(args["lstmqn_path"]))
-        self.lstmqn.eval()
+        net = nn.DataParallel(Net(len(coco.qn_vocab)))
+        if use_cuda:
+            net = net.cuda()
+        net.eval()
 
     def get_image(i):
-        (images, qns), targets = self.data_loader[i]
-        self.images = images.to(device)
-        self.qns = qns.to(device)
+        (images, qns), targets, qn_lengths = self.data_loader[i]
+        if use_cuda:
+            self.images = images.cuda()
+            self.qns = qns.cuda()
+        else:
+            self.images = images
+            self.qns = qns
         ft_output = self.cnn_model(self.images)
         lstm_output = self.lstmqn(self.qns, qn_lengths)
         concat_ft = torch.cat((ft_output,lstm_output), 1)
@@ -57,16 +52,9 @@ class Generator():
         concat.eval()
         outputs = concat(concat_ft)
         answer = outputs.data.topk(top_k, dim=1)
-        answer = vocab.idx2word[answer]
+        answer = self.ans_vocab.idx2word[answer]
         return outputs, answer
 
     def get_question():
         print(self.images)
         print(self.qns)
-            
-            
-            
-            
-                  
-    
-     
