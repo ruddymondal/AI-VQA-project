@@ -1,6 +1,6 @@
 settings = {
-    'crop_size': 229,
-    'vocab_path': 'data/vocab.pkl',
+    'crop_size': 448,
+    'vocab_path': 'vocab.pkl',
     'image_dir': 'data/train2014',
     'anns_json': 'data/v2_mscoco_train2014_annotations.json',
     'qns_json': 'data/v2_OpenEnded_mscoco_train2014_questions.json',
@@ -12,6 +12,6 @@ settings = {
     'embed_size': 'dimension of word embedding vectors',
     'hidden_size': 1024,
     'num_layers':1, 
-    'batch_size': 1,
-    'num_workers': 2
+    'batch_size': 16,
+    'num_workers': 0
 }
