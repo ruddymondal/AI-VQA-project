@@ -6,7 +6,7 @@ import pickle
 import os
 from torchvision import transforms 
 from build_vocab import Vocabulary
-from model import EncoderCNN, DecoderRNN
+from net import CNN, LSTMqn, Concat
 from PIL import Image
 import config
 
