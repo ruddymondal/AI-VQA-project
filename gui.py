@@ -2,7 +2,7 @@ from kivy.app import App
 from kivy.lang import Builder
 from kivy.uix.widget import Widget
 from generatesample import Generator
-import random.randint
+from random import randomint
 
 class GUILoader(Widget):
     def __init__(self):
